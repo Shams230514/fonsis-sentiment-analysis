@@ -19,6 +19,6 @@ RUN pip install --upgrade pip && \
 
 COPY --chown=1001:0 . .
 
-EXPOSE 5000
+EXPOSE 8080
 
 CMD ["python", "app.py"]
