@@ -12,8 +12,8 @@ import numpy as np
 app = Flask(__name__)
 CORS(app)
 
-# Configuration - MODIFIEZ CE CHEMIN SELON VOTRE SETUP
-MODEL_PATH = "/opt/app-root/src/model_sentiment/model_fonsis/sentiment_model.onnx"  # Chemin vers le modèle
+# Configuration avec le chemin réel du modèle dans OpenShift AI
+MODEL_PATH = "/opt/app-root/src/model_sentiment/model_fonsis/sentiment_model.onnx"
 TOKENIZER_NAME = "ProsusAI/finbert"     # ou le tokenizer de notre modèle
 
 # Chargement du modèle ONNX et du tokenizer
