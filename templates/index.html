@@ -224,6 +224,15 @@
             background: #e74c3c;
             color: white;
         }
+
+        .error-message {
+            color: #e74c3c;
+            background-color: #fadbd8;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -249,6 +258,7 @@
                     <input type="file" id="fileInput" accept=".pdf" style="display: none;">
                 </div>
                 <button class="btn" id="analyzeBtn">🔍 Analyser le Document</button>
+                <div id="errorMessage" class="error-message"></div>
                 
                 <div style="margin-top: 30px;">
                     <h3>Secteurs Prioritaires FONSIS</h3>
@@ -305,6 +315,7 @@
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('fileInput');
         const analyzeBtn = document.getElementById('analyzeBtn');
+        const errorMessage = document.getElementById('errorMessage');
         let selectedFile = null;
         
         dropzone.addEventListener('click', () => fileInput.click());
@@ -326,43 +337,61 @@
             if (files.length > 0 && files[0].type === 'application/pdf') {
                 selectedFile = files[0];
                 dropzone.innerHTML = `<p>✅ ${selectedFile.name}</p><p>Prêt pour l'analyse</p>`;
+                errorMessage.style.display = 'none';
+            } else {
+                errorMessage.textContent = 'Veuillez sélectionner un fichier PDF valide';
+                errorMessage.style.display = 'block';
             }
         });
         
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
-                selectedFile = e.target.files[0];
-                dropzone.innerHTML = `<p>✅ ${selectedFile.name}</p><p>Prêt pour l'analyse</p>`;
+                if (e.target.files[0].type === 'application/pdf') {
+                    selectedFile = e.target.files[0];
+                    dropzone.innerHTML = `<p>✅ ${selectedFile.name}</p><p>Prêt pour l'analyse</p>`;
+                    errorMessage.style.display = 'none';
+                } else {
+                    errorMessage.textContent = 'Veuillez sélectionner un fichier PDF valide';
+                    errorMessage.style.display = 'block';
+                }
             }
         });
         
         // Analyse du document
         analyzeBtn.addEventListener('click', async () => {
             if (!selectedFile) {
-                alert('Veuillez sélectionner un document PDF');
+                errorMessage.textContent = 'Veuillez sélectionner un document PDF';
+                errorMessage.style.display = 'block';
                 return;
             }
             
+            errorMessage.style.display = 'none';
             document.getElementById('loading').style.display = 'block';
             document.getElementById('results').style.display = 'none';
             
-            // Simuler l'envoi au backend
+            // Envoi au backend
             const formData = new FormData();
             formData.append('file', selectedFile);
             
             try {
-                // Dans un cas réel, vous feriez un appel à votre API
-                // const response = await fetch('/api/analyze', { method: 'POST', body: formData });
-                // const data = await response.json();
+                // Appel à l'API réelle
+                const response = await fetch('/api/analyze', { 
+                    method: 'POST', 
+                    body: formData 
+                });
                 
-                // Pour la démo, simuler les résultats
-                setTimeout(() => {
-                    displayResults(getMockResults());
-                }, 2000);
+                if (!response.ok) {
+                    throw new Error(`Erreur ${response.status}: ${await response.text()}`);
+                }
+                
+                const data = await response.json();
+                displayResults(data);
                 
             } catch (error) {
                 console.error('Erreur:', error);
-                alert('Erreur lors de l\'analyse');
+                errorMessage.textContent = `Erreur lors de l'analyse: ${error.message}`;
+                errorMessage.style.display = 'block';
+                document.getElementById('loading').style.display = 'none';
             }
         });
         
@@ -437,27 +466,6 @@
         
         function getSentimentClass(sentiment) {
             return `sentiment-${sentiment.toLowerCase()}`;
-        }
-        
-        // Données mockées pour la démo
-        function getMockResults() {
-            return {
-                totalBlocs: 3810,
-                confidenceScore: 94,
-                opportunities: 5,
-                sectors: [
-                    { name: 'Eau', score: 2.5, sentiment: 'Neutral', occurrences: 28, decision: '🔼 Considérer investissement' },
-                    { name: 'Santé', score: 3.0, sentiment: 'Neutral', occurrences: 4, decision: '🔼 Considérer investissement' },
-                    { name: 'Transport', score: 3.0, sentiment: 'Neutral', occurrences: 4, decision: '🔼 Considérer investissement' },
-                    { name: 'Pharma', score: 3.0, sentiment: 'Neutral', occurrences: 1, decision: '🔼 Considérer investissement' },
-                    { name: 'Agrobusiness', score: 0.8, sentiment: 'Neutral', occurrences: 0, decision: '⛔ Éviter pour l\'instant' }
-                ],
-                sentimentDistribution: {
-                    positive: 7,
-                    neutral: 3803,
-                    negative: 0
-                }
-            };
         }
     </script>
 </body>
