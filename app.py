@@ -1,6 +1,5 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
-import onnxruntime as ort
 import pandas as pd
 from transformers import AutoTokenizer
 import pdfplumber
@@ -8,22 +7,18 @@ from tqdm import tqdm
 import os
 import tempfile
 import numpy as np
+import requests
+import json
 
 app = Flask(__name__)
 CORS(app)
 
-# Configuration avec le chemin réel du modèle dans OpenShift AI
-MODEL_PATH = "/opt/app-root/src/model_sentiment/model_fonsis/sentiment_model.onnx"
-TOKENIZER_NAME = "ProsusAI/finbert"     # ou le tokenizer de notre modèle
+# Configuration avec l'URL d'inférence dans OpenShift AI
+INFERENCE_URL = "https://sentimentbisss-fonsis.apps.ocp.heritage.africa/v2/models/sentimentbisss/infer"
+TOKENIZER_NAME = "ProsusAI/finbert"  
 
-# Chargement du modèle ONNX et du tokenizer
-print("Chargement du modèle ONNX...")
-try:
-    session = ort.InferenceSession(MODEL_PATH)
-    print("Modèle ONNX chargé avec succès!")
-except Exception as e:
-    print(f"Erreur lors du chargement du modèle: {e}")
-
+# Chargement du tokenizer
+print("Chargement du tokenizer...")
 tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_NAME)
 
 # Fonctions d'analyse
@@ -51,15 +46,28 @@ def analyse_sentiment_onnx(text):
             return_tensors="np"
         )
         
-        # Préparer les inputs pour ONNX (conformément à votre modèle)
-        ort_inputs = {
-            'input_ids': inputs['input_ids'].astype(np.int64),
-            'attention_mask': inputs['attention_mask'].astype(np.int64)
+        # Préparation des données pour l'API d'inférence
+        input_data = {
+            'inputs': {
+                'input_ids': inputs['input_ids'].tolist(),
+                'attention_mask': inputs['attention_mask'].tolist()
+            }
         }
         
-        # Inférence
-        outputs = session.run(['logits'], ort_inputs)
-        logits = outputs[0][0]  # Premier élément du batch
+        # Appel à l'API d'inférence
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.post(INFERENCE_URL, headers=headers, data=json.dumps(input_data))
+        
+        if response.status_code != 200:
+            print(f"Erreur API: {response.status_code} - {response.text}")
+            return {"label": "neutral", "score": 0.5}
+        
+        # Traitement de la réponse
+        result = response.json()
+        logits = np.array(result['outputs']['logits'][0])
         
         # Appliquer softmax pour obtenir les probabilités
         exp_logits = np.exp(logits - np.max(logits))
@@ -224,8 +232,13 @@ def analyze():
 
 @app.route('/health')
 def health():
-    # Vérifier que le modèle est chargé
-    model_status = "loaded" if 'session' in globals() else "not loaded"
+    # Vérifier que l'URL d'inférence est accessible
+    try:
+        response = requests.get(INFERENCE_URL.split('/api/')[0] + '/health')
+        model_status = "available" if response.status_code == 200 else f"not available ({response.status_code})"
+    except Exception as e:
+        model_status = f"error: {str(e)}"
+    
     return jsonify({
         'status': 'healthy',
         'model_status': model_status
